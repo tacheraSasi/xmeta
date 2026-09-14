@@ -2,38 +2,56 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/pkg/xattr"
+	"xmeta/xmeta"
 )
 
 func main() {
-	filePath := "test.txt"
-	err := os.WriteFile(filePath, []byte("hello from xmeta"), 0o644)
-	if err != nil {
-		log.Fatalf("Failed to create file: %v", err)
+	if len(os.Args) < 3 {
+		help()
 	}
-	defer os.Remove(filePath)
+	cmd, path := os.Args[1], os.Args[2]
 
-	attrKey := "user.department"
-	attrVal := []byte("engineering")
+	switch cmd {
+	case "add": // xmeta add ./photo.jpg fingerprint hciow
+		key, val := os.Args[3], os.Args[4]
+		if err := xmeta.Set(path, key, []byte(val)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	case "get": // xmeta get ./photo.jpg fingerprint
+		val, err := xmeta.Get(path, os.Args[3])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println(string(val))
 
-	err = xattr.Set(filePath, attrKey, attrVal)
-	if err != nil {
-		log.Fatalf("Failed to get xattr: %v", err)
+	case "list": // xmeta list ./photo.jpg
+		keys, err := xmeta.List(path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		for _, k := range keys {
+			v, _ := xmeta.Get(path, k)
+			fmt.Printf("%s = %s\n", k, string(v))
+		}
+
+	case "remove": // xmeta remove ./photo.jpg fingerprint
+		if err := xmeta.Remove(path, os.Args[3]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+	default:
+
 	}
-	fmt.Printf("Successfully set %s = %s\n", attrKey, attrVal)
+}
 
-	val, err := xattr.Get(filePath, attrKey)
-	if err != nil {
-		log.Fatalf("Failed to get xattr: %v", err)
-	}
-	fmt.Printf("Retrieved %s = %s\n", attrKey, string(val))
-
-	attrs, err := xattr.List(filePath)
-	if err != nil {
-		log.Fatalf("Failed to list xattr: %v", err)
-	}
-	fmt.Printf("All metadata keys on file: %v\n", attrs)
+// This just prints the help text
+func help() {
+	fmt.Println("usage: xmeta <add|get|list|remove> <file> [key] [value]")
+	os.Exit(1)
 }
